@@ -12,39 +12,45 @@
  * @link      add_pin_instruction.php
  * @since     Script available since Release 1.0.0
  */
-include 'db.inc.php';
+require_once 'db.inc.php';
 session_start();
-include 'functions.inc.php';
+require_once 'functions.inc.php';
 $resourceId = 2;
-$userId = $_SESSION['user_id'];
-$roleId = $_SESSION['role_id'];
 
 $userHasReadAccess = userHasAccess($userId, $resourceId, 'read');
 $userHasWriteAccess = userHasAccess($userId, $resourceId, 'write');
 $userHasDeleteAccess = userHasAccess($userId, $resourceId, 'delete');
 
 if (!isset($_SESSION['authenticated'])) {
-    header("Location: index.php");
-    exit;
+	redirectTo("index.php");
 }
 
 if (!$userHasWriteAccess) {
-	echo "Unauthorized";
-	$user_id = $_SESSION['user_id'];
+	echo htmlentities("Unauthorized", ENT_QUOTES, 'UTF-8');
 	$action = "Unauthorized User Attempt";
-	$details = "User $_SESSION[user_email] tried to add a pin instruction but didn't have the proper permissions.";
+	$details = "User $userEmail tried to add a pin instruction but didn't have the proper permissions.";
 
-	if (insertAuditLog($user_id, $action, $details)) {}
-	exit;
+	if (insertAuditLog($userId, $action, $details)) {}
+	redirectTo("unauthorized.php");
 }
 
-// Retrieve the pin_id from the query parameter
-$selectedPinId = $_GET['pin_id'];
+// Retrieve and validate the pin_id from the query parameter
+$selectedPinId = filter_input(INPUT_GET, 'pin_id', FILTER_VALIDATE_INT);
 
-// Fetch the pin name based on the pin_id
+// If the pin_id is not valid, handle the error or set a default value
+if ($selectedPinId === false) {
+    // Invalid pin_id, log the error and terminate the script
+    handleError("Invalid pin_id.", null, true, 400);
+}
+
 $pinName = getPinNameById($selectedPinId);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($pinName === null) {
+    // Handle the case where the pin name is not found
+    handleError("Pin not found", null, true, 404);
+}
+
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
 	$pinId = filter_input(INPUT_POST, 'pin_id', FILTER_VALIDATE_INT);
 	$instructionText = filter_input(INPUT_POST, 'instruction_text', FILTER_SANITIZE_STRING);
 	$requiresPhoto = filter_input(INPUT_POST, 'requires_photo', FILTER_VALIDATE_INT);
@@ -56,9 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$insertResult = insertPinInstruction($pinId, $instructionText, $isExisting, $requiresPhoto);
 
 		if ($insertResult) {
-			// Pin instruction successfully inserted, redirect or display a success message
-			header("Location: pins.php"); // Redirect to the pins page
-			exit;
+			redirectTo("pins.php");
 		} else {
 			// Error occurred during insertion
 			$error = "Error occurred while adding the pin instruction.";
@@ -103,12 +107,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="wrapper">
         <div class="sidebar-wrapper" data-simplebar="true">
             <?php
-            include 'sidebarheader.inc.php';
-            include 'sidenav.inc.php';
+            require_once 'sidebarheader.inc.php';
+            require_once 'sidenav.inc.php';
             ?>
         </div>
         <?php
-        include 'header.inc.php';
+        require_once 'header.inc.php';
         ?>
         <div class="page-wrapper">
             <div class="page-content-wrapper">
@@ -127,10 +131,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="card">
                         <div class="card-body">
-						<h5>Add Pin Instruction for <?php echo $pinName; ?></h5>
+						<h5>Add Pin Instruction for <?php echo htmlentities($pinName, ENT_QUOTES, 'UTF-8'); ?></h5>
 						<hr/>
 						<form method="POST">
-							<input type="hidden" name="pin_id" value="<?php echo $selectedPinId; ?>">
+							<input type="hidden" name="pin_id" value="<?php echo htmlentities($selectedPinId, ENT_QUOTES, 'UTF-8'); ?>">
 							<div class="mb-3">
 								<label for="instruction_text" class="form-label">Instruction Text</label>
 								<textarea name="instruction_text" class="form-control" id="instruction_text" placeholder="Enter instruction text" required></textarea>
@@ -159,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <a href="javaScript:;" class="back-to-top"><i class='bx bxs-up-arrow-alt'></i></a>
     </div>
-    <?php include 'footer.inc.php'; ?>
+    <?php require_once 'footer.inc.php'; ?>
     <script src="assets/js/bootstrap.bundle.min.js"></script>
     <script src="assets/js/jquery.min.js"></script>
     <script src="assets/plugins/metismenu/js/metisMenu.min.js"></script>
